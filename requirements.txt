@@ -1,0 +1,6 @@
+f5-tts
+fastapi
+uvicorn[standard]
+python-multipart
+soundfile
+sse-starlette

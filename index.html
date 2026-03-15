@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Cloning TTS</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f0f0f;
+    color: #e0e0e0;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: .3rem; }
+  .sub { color: #888; font-size: .85rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.1rem; margin-bottom: .8rem; color: #ccc; }
+  h3 { font-size: .95rem; margin: 1rem 0 .5rem; color: #aaa; }
+  section {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin-bottom: 1.2rem;
+  }
+  label { display: block; font-size: .85rem; color: #aaa; margin-bottom: .3rem; }
+  input[type="file"], input[type="text"], select, textarea {
+    width: 100%;
+    padding: .5rem .7rem;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #111;
+    color: #e0e0e0;
+    font-size: .9rem;
+    margin-bottom: .8rem;
+  }
+  textarea { resize: vertical; min-height: 100px; font-family: inherit; }
+  button {
+    padding: .5rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    background: #2563eb;
+    color: #fff;
+    cursor: pointer;
+    font-size: .9rem;
+    margin-right: .5rem;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.danger { background: #dc2626; }
+  button.danger:hover { background: #b91c1c; }
+  button.secondary { background: #374151; }
+  button.secondary:hover { background: #4b5563; }
+  button.success { background: #059669; }
+  button.success:hover { background: #047857; }
+  button.warning { background: #d97706; }
+  button.warning:hover { background: #b45309; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .msg { margin-top: .6rem; font-size: .85rem; color: #888; }
+  .msg.err { color: #f87171; }
+  .voice-list { list-style: none; }
+  .voice-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .5rem 0;
+    border-bottom: 1px solid #222;
+    font-size: .85rem;
+  }
+  .voice-list li:last-child { border: none; }
+  .voice-id { font-family: monospace; color: #60a5fa; }
+  .voice-actions { display: flex; gap: .3rem; }
+  .voice-actions button { font-size: .75rem; padding: .25rem .6rem; }
+  #apiKeyInput { width: 260px; display: inline-block; margin-bottom: 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: .5rem; }
+  .health { font-size: .8rem; color: #4ade80; }
+  .health.down { color: #f87171; }
+  .health.warn { color: #fbbf24; }
+  .tabs { display: flex; gap: 0; margin-bottom: 0; }
+  .tab {
+    padding: .6rem 1.2rem;
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-bottom: none;
+    cursor: pointer;
+    font-size: .85rem;
+    color: #888;
+    border-radius: 8px 8px 0 0;
+  }
+  .tab.active { background: #1a1a1a; color: #e0e0e0; border-bottom: 1px solid #1a1a1a; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .doc-section { border-top: none; border-radius: 0 0 8px 8px; }
+  code { background: #111; padding: .15rem .4rem; border-radius: 3px; font-size: .85rem; color: #60a5fa; }
+  pre { background: #111; padding: .8rem; border-radius: 4px; overflow-x: auto; font-size: .82rem; line-height: 1.5; margin: .5rem 0; color: #c9d1d9; }
+  .doc p { font-size: .88rem; line-height: 1.6; margin-bottom: .6rem; color: #bbb; }
+  .doc ul { margin: .4rem 0 .8rem 1.2rem; font-size: .88rem; color: #bbb; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin: .5rem 0; font-size: .82rem; }
+  th, td { padding: .4rem .6rem; border: 1px solid #2a2a2a; text-align: left; }
+  th { background: #111; color: #aaa; }
+  td { color: #ccc; }
+
+  .player {
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: .8rem;
+    display: none;
+  }
+  .player.visible { display: block; }
+  .player-controls { display: flex; gap: .5rem; align-items: center; margin-bottom: .6rem; flex-wrap: wrap; }
+  .player-time { font-size: .8rem; color: #888; font-family: monospace; min-width: 100px; }
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #2a2a2a;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    margin-bottom: .4rem;
+  }
+  .progress-fill { height: 100%; background: #2563eb; border-radius: 3px; width: 0%; transition: width 0.1s linear; }
+  .volume-row { display: flex; align-items: center; gap: .3rem; }
+  .volume-slider { width: 70px; accent-color: #2563eb; }
+  .speed-select { width: auto; padding: .2rem .4rem; font-size: .8rem; margin-bottom: 0; display: inline-block; }
+  .gen-progress {
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    padding: .8rem;
+    margin-top: .6rem;
+    font-size: .82rem;
+    display: none;
+  }
+  .gen-progress.visible { display: block; }
+  .gen-progress-bar { width: 100%; height: 4px; background: #2a2a2a; border-radius: 2px; margin-top: .4rem; }
+  .gen-progress-fill { height: 100%; background: #059669; border-radius: 2px; width: 0%; transition: width 0.3s; }
+  .gen-progress-text { color: #888; }
+  .gen-progress-chunk { color: #4ade80; margin-top: .3rem; font-size: .8rem; }
+  .toggle-row { display: flex; gap: 1rem; align-items: center; margin-bottom: .8rem; }
+  .toggle-label { font-size: .85rem; color: #aaa; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
+  .toggle-label input { accent-color: #2563eb; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Voice Cloning TTS</h1>
+    <p class="sub">Local GPU-accelerated voice cloning text-to-speech</p>
+  </div>
+  <div>
+    <span id="healthDot" class="health">checking...</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('app')">App</div>
+  <div class="tab" onclick="switchTab('docs')">Documentation</div>
+  <div class="tab" onclick="switchTab('api')">API Reference</div>
+</div>
+
+<!-- ==================== APP TAB ==================== -->
+<div id="tab-app" class="tab-content active">
+
+<section class="doc-section">
+  <label>API Key (leave blank if none set)</label>
+  <input type="text" id="apiKeyInput" placeholder="optional">
+</section>
+
+<!-- Upload Voice -->
+<section>
+  <h2>Upload Voice Sample</h2>
+  <label>Audio file (5-10s WAV or MP3, clear speech, minimal background noise)</label>
+  <input type="file" id="voiceFile" accept="audio/*">
+  <button id="uploadBtn" onclick="uploadVoice()">Upload</button>
+  <div id="uploadMsg" class="msg"></div>
+</section>
+
+<!-- Voice Profiles -->
+<section>
+  <h2>Voice Profiles</h2>
+  <ul class="voice-list" id="voiceList"><li>Loading...</li></ul>
+</section>
+
+<!-- Multi-Reference Training -->
+<section>
+  <h2>Enhance Voice (Multi-Reference)</h2>
+  <p style="font-size:.82rem; color:#888; margin-bottom:.8rem;">Upload longer audio (1-5 min) to auto-split into multiple reference clips. Improves voice consistency and quality. Supports WAV, MP3, OGG (WhatsApp voice messages).</p>
+  <label>Voice to enhance</label>
+  <select id="enhanceVoiceSelect"><option value="">-- select voice --</option></select>
+  <label>Longer audio file</label>
+  <input type="file" id="enhanceFile" accept="audio/*">
+  <button id="enhanceBtn" onclick="enhanceVoice()">Upload &amp; Split</button>
+  <div id="enhanceMsg" class="msg"></div>
+</section>
+
+<!-- Generate Speech -->
+<section>
+  <h2>Generate Speech</h2>
+  <div style="display:flex; gap:1rem;">
+    <div style="flex:1;">
+      <label>Voice</label>
+      <select id="voiceSelect"><option value="">-- select voice --</option></select>
+    </div>
+    <div style="flex:1;">
+      <label>Engine</label>
+      <select id="engineSelect"><option value="">loading...</option></select>
+    </div>
+  </div>
+  <label>Text</label>
+  <textarea id="speakText">One rainy afternoon, a young woman brought in a silver pocket watch that had stopped entirely. "It belonged to my grandfather," she said softly. "It stopped the exact moment he passed away." The old watchmaker held it carefully, turning it over in his weathered hands. "Some things don't want to be fixed," he replied. "They want to be remembered."</textarea>
+  <div class="toggle-row">
+    <label class="toggle-label">
+      <input type="checkbox" id="streamToggle" checked> Stream (play as generated)
+    </label>
+  </div>
+  <div class="row">
+    <button id="speakBtn" onclick="generateSpeech()">Generate</button>
+    <button id="retryBtn" class="warning" style="display:none" onclick="retryGeneration()">Retry</button>
+    <button id="cancelBtn" class="danger" style="display:none" onclick="cancelGeneration()">Cancel</button>
+  </div>
+  <div id="speakMsg" class="msg"></div>
+
+  <!-- Generation Progress -->
+  <div class="gen-progress" id="genProgress">
+    <div class="gen-progress-text" id="genProgressText">Generating...</div>
+    <div class="gen-progress-bar"><div class="gen-progress-fill" id="genProgressFill"></div></div>
+    <div class="gen-progress-chunk" id="genProgressChunk"></div>
+  </div>
+
+  <!-- Audio Player -->
+  <div class="player" id="player">
+    <div class="progress-bar" id="progressBar" onclick="seekAudio(event)">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="player-controls">
+      <button class="success" id="playBtn" onclick="togglePlay()" style="padding:.4rem .8rem; font-size:.85rem;">Play</button>
+      <button class="secondary" id="stopBtn" onclick="stopAudio()" style="padding:.4rem .8rem; font-size:.85rem;">Stop</button>
+      <span class="player-time" id="playerTime">0:00 / 0:00</span>
+      <div class="volume-row">
+        <span style="font-size:.75rem; color:#666;">Vol</span>
+        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
+      </div>
+      <select class="speed-select" id="speedSelect" onchange="setSpeed(this.value)">
+        <option value="0.5">0.5x</option>
+        <option value="0.75">0.75x</option>
+        <option value="1" selected>1x</option>
+        <option value="1.25">1.25x</option>
+        <option value="1.5">1.5x</option>
+        <option value="2">2x</option>
+      </select>
+      <button class="secondary" id="downloadBtn" onclick="downloadAudio()" style="font-size:.82rem; padding:.35rem .8rem;">Download</button>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- ==================== DOCS TAB ==================== -->
+<div id="tab-docs" class="tab-content">
+<section class="doc-section doc">
+
+  <h2>Overview</h2>
+  <p>A local GPU-accelerated voice cloning service. Clone any voice from a short audio sample and generate speech in that voice. No cloud APIs, no per-request costs, full privacy.</p>
+
+  <h3>Requirements</h3>
+  <ul>
+    <li><strong>Python 3.12</strong> (3.14 is too new for some dependencies)</li>
+    <li><strong>NVIDIA GPU</strong> with CUDA support (tested on RTX 5080)</li>
+    <li><strong>FFmpeg shared build</strong> (with DLLs, not static) &mdash; required by torchcodec</li>
+    <li><strong>~6GB VRAM</strong> when model is loaded</li>
+    <li><strong>~3GB disk</strong> for model weights (downloaded on first run)</li>
+  </ul>
+
+  <h3>Quick Start</h3>
+  <pre>
+# Windows
+run.bat
+
+# Linux / manual
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+python server.py</pre>
+  <p>The server starts on <code>http://0.0.0.0:8000</code>. Open it in a browser to use the web UI.</p>
+
+  <h3>Windows Setup Notes</h3>
+  <p><strong>PyTorch CUDA:</strong> pip installs CPU-only PyTorch by default. Reinstall with CUDA:</p>
+  <pre>pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128 --force-reinstall</pre>
+  <p><strong>FFmpeg shared DLLs:</strong></p>
+  <pre>winget install Gyan.FFmpeg.Shared</pre>
+  <p>The run.bat script handles adding the DLL path automatically.</p>
+
+  <h3>Configuration</h3>
+  <table>
+    <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>TTS_DEVICE</code></td><td>cuda</td><td>Device for inference (<code>cuda</code> or <code>cpu</code>)</td></tr>
+    <tr><td><code>API_KEY</code></td><td><em>unset</em></td><td>If set, all requests require <code>X-API-Key</code> header. Leave unset for local use. Set when exposing over network.</td></tr>
+  </table>
+
+  <h3>API Key / Authentication</h3>
+  <p>Authentication is <strong>off by default</strong> for local use. Set <code>API_KEY</code> when exposing to other devices:</p>
+  <pre>
+# Windows
+set API_KEY=my-secret-key
+python server.py
+
+# Linux
+API_KEY=my-secret-key python server.py</pre>
+
+  <h3>Voice Profiles</h3>
+  <p>Stored in <code>./voices/</code>. Each contains:</p>
+  <ul>
+    <li><code>reference.wav</code> &mdash; the reference audio</li>
+    <li><code>meta.json</code> &mdash; voice ID and metadata</li>
+    <li><code>ref_text.txt</code> &mdash; pre-transcribed reference text (speeds up inference)</li>
+  </ul>
+  <p>For best results: <strong>5-10 seconds</strong>, clear speech, minimal background noise. You can preview the reference audio before selecting a voice.</p>
+
+  <h3>Streaming</h3>
+  <p>When streaming is enabled, audio is generated chunk by chunk and sent to the browser via Server-Sent Events (SSE). You hear audio within seconds of hitting Generate, even for long text. Each sentence chunk is generated independently and played sequentially.</p>
+
+  <h3>Text Chunking</h3>
+  <p>Long text is automatically split at sentence boundaries (~200 chars each). Each chunk is generated separately for better quality and enables streaming playback.</p>
+
+  <h3>Retry Logic</h3>
+  <p>Each chunk is retried up to 2 times on failure. If generation still fails, use the Retry button to try again. The GPU lock ensures only one generation runs at a time &mdash; additional requests queue up.</p>
+
+  <h3>Performance</h3>
+  <table>
+    <tr><th>GPU</th><th>Speed</th><th>VRAM</th></tr>
+    <tr><td>RTX 5080</td><td>~10-50x realtime</td><td>~4-6 GB</td></tr>
+    <tr><td>CPU only</td><td>~0.5-1x realtime</td><td>~4GB RAM</td></tr>
+  </table>
+
+  <h3>Network Access</h3>
+  <p>Binds to <code>0.0.0.0:8000</code>. Use <strong>Tailscale</strong> for secure remote access.</p>
+
+</section>
+</div>
+
+<!-- ==================== API TAB ==================== -->
+<div id="tab-api" class="tab-content">
+<section class="doc-section doc">
+
+  <h2>API Reference</h2>
+
+  <h3>GET /health</h3>
+  <pre>{ "status": "ok", "model_loaded": true, "queue_size": 0 }</pre>
+
+  <h3>GET /voices</h3>
+  <pre>[{ "voice_id": "default", "original_filename": "basic_ref_en.wav", "ref_text": "..." }]</pre>
+
+  <h3>POST /voices</h3>
+  <p>Upload voice sample. Reference audio is auto-transcribed on upload for faster inference.</p>
+  <pre>curl -X POST http://localhost:8000/voices -F "file=@voice.wav"</pre>
+
+  <h3>GET /voices/{voice_id}/preview</h3>
+  <p>Returns the reference audio WAV for previewing the voice.</p>
+
+  <h3>DELETE /voices/{voice_id}</h3>
+  <pre>curl -X DELETE http://localhost:8000/voices/abc123</pre>
+
+  <h3>POST /speak</h3>
+  <p>Generate complete MP3. Blocks until all chunks are done.</p>
+  <pre>
+curl -X POST http://localhost:8000/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello world", "voice_id": "default"}' \
+  --output speech.mp3</pre>
+
+  <h3>POST /speak/stream</h3>
+  <p>Stream generation via Server-Sent Events. Each chunk is sent as a base64-encoded MP3.</p>
+  <p>Events:</p>
+  <table>
+    <tr><th>Event</th><th>Data</th></tr>
+    <tr><td><code>info</code></td><td><code>{ "job_id": "...", "total_chunks": 3 }</code></td></tr>
+    <tr><td><code>progress</code></td><td><code>{ "chunk": 1, "total": 3, "text": "..." }</code></td></tr>
+    <tr><td><code>audio</code></td><td><code>{ "chunk": 1, "total": 3, "audio_b64": "..." }</code></td></tr>
+    <tr><td><code>done</code></td><td><code>{ "status": "complete" }</code></td></tr>
+    <tr><td><code>error</code></td><td><code>{ "detail": "..." }</code></td></tr>
+  </table>
+  <pre>
+// JavaScript example
+const es = new EventSource('/speak/stream', { method: 'POST', ... });
+// Note: EventSource is GET-only. Use fetch with ReadableStream instead:
+const resp = await fetch('/speak/stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ text: '...', voice_id: 'default' })
+});
+// Parse SSE from response body stream</pre>
+
+  <h3>GET /queue</h3>
+  <p>Current queue status.</p>
+  <pre>{ "queue_size": 1, "jobs": ["abc123"] }</pre>
+
+  <h3>Authentication</h3>
+  <p>Header: <code>X-API-Key: your-key</code>. Only required if <code>API_KEY</code> env var is set.</p>
+
+  <h3>Error Codes</h3>
+  <table>
+    <tr><td>400</td><td>Bad request</td></tr>
+    <tr><td>401</td><td>Invalid API key</td></tr>
+    <tr><td>404</td><td>Voice not found</td></tr>
+    <tr><td>500</td><td>Inference failed</td></tr>
+    <tr><td>503</td><td>Model not loaded</td></tr>
+  </table>
+
+</section>
+</div>
+
+<script>
+const API = '';
+let lastBlob = null;
+let audio = new Audio();
+let isPlaying = false;
+let isGenerating = false;
+let abortController = null;
+let lastRequest = null;
+
+// Audio chunk queue for streaming
+let audioChunks = [];
+let currentChunkIndex = 0;
+let chunkAudios = [];
+
+// ===================== TABS =====================
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector(`.tab[onclick="switchTab('${name}')"]`).classList.add('active');
+}
+
+function headers() {
+  const h = {};
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (key) h['X-API-Key'] = key;
+  return h;
+}
+
+function formatTime(s) {
+  if (isNaN(s)) return '0:00';
+  return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0');
+}
+
+// ===================== PLAYER =====================
+audio.addEventListener('timeupdate', () => {
+  const fill = document.getElementById('progressFill');
+  const time = document.getElementById('playerTime');
+  if (audio.duration) {
+    fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+    time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+  }
+});
+
+audio.addEventListener('ended', () => {
+  // If streaming, play next chunk
+  if (chunkAudios.length > 0 && currentChunkIndex < chunkAudios.length - 1) {
+    currentChunkIndex++;
+    playChunkAudio(currentChunkIndex);
+    return;
+  }
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  document.getElementById('progressFill').style.width = '100%';
+});
+
+audio.addEventListener('play', () => {
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+});
+
+audio.addEventListener('pause', () => {
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = 'Play';
+});
+
+function togglePlay() {
+  if (!audio.src) return;
+  if (isPlaying) audio.pause();
+  else audio.play();
+}
+
+function stopAudio() {
+  audio.pause();
+  audio.currentTime = 0;
+  currentChunkIndex = 0;
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('playerTime').textContent = `0:00 / ${formatTime(audio.duration)}`;
+}
+
+function seekAudio(e) {
+  if (!audio.duration) return;
+  const bar = document.getElementById('progressBar');
+  const rect = bar.getBoundingClientRect();
+  audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+}
+
+function setVolume(val) { audio.volume = parseFloat(val); }
+function setSpeed(val) { audio.playbackRate = parseFloat(val); }
+
+function playChunkAudio(index) {
+  if (index >= chunkAudios.length) return;
+  const blob = chunkAudios[index];
+  audio.src = URL.createObjectURL(blob);
+  audio.playbackRate = parseFloat(document.getElementById('speedSelect').value);
+  audio.volume = parseFloat(document.getElementById('volumeSlider').value);
+  audio.play();
+}
+
+// ===================== HEALTH =====================
+async function checkHealth() {
+  const el = document.getElementById('healthDot');
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    const loaded = Object.values(d.engines || {}).filter(e => e.loaded).length;
+    const total = Object.keys(d.engines || {}).length;
+    if (loaded > 0) {
+      let text = `${loaded}/${total} engines`;
+      if (d.queue_size > 0) {
+        text += ` (queue: ${d.queue_size})`;
+        el.className = 'health warn';
+      } else {
+        el.className = 'health';
+      }
+      el.textContent = text;
+    } else {
+      el.textContent = 'no engines loaded';
+      el.className = 'health down';
+    }
+  } catch {
+    el.textContent = 'offline';
+    el.className = 'health down';
+  }
+}
+
+async function loadEngines() {
+  const sel = document.getElementById('engineSelect');
+  try {
+    const r = await fetch(API + '/engines');
+    const engines = await r.json();
+    sel.innerHTML = '';
+    engines.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = e.name;
+      opt.disabled = !e.loaded;
+      if (!e.loaded) opt.textContent += ' (not installed)';
+      sel.appendChild(opt);
+    });
+  } catch {
+    sel.innerHTML = '<option value="flow">Flow</option>';
+  }
+}
+
+// ===================== VOICES =====================
+async function loadVoices() {
+  const list = document.getElementById('voiceList');
+  const sel = document.getElementById('voiceSelect');
+  try {
+    const r = await fetch(API + '/voices', { headers: headers() });
+    const voices = await r.json();
+    sel.innerHTML = '<option value="">-- select voice --</option>';
+    if (voices.length === 0) {
+      list.innerHTML = '<li>No voices yet. Upload one above.</li>';
+      return;
+    }
+    const enhSel = document.getElementById('enhanceVoiceSelect');
+    enhSel.innerHTML = '<option value="">-- select voice --</option>';
+    list.innerHTML = '';
+    voices.forEach(v => {
+      const mode = v.mode === 'multi-reference' ? ` [${v.ref_count || '?'} refs]` : '';
+      const li = document.createElement('li');
+      li.innerHTML = `<span><span class="voice-id">${v.voice_id}</span> &mdash; ${v.original_filename || 'unknown'}${mode}</span>`;
+      // enhance select
+      const eopt = document.createElement('option');
+      eopt.value = v.voice_id;
+      eopt.textContent = `${v.voice_id} (${v.original_filename || ''})`;
+      enhSel.appendChild(eopt);
+      const actions = document.createElement('div');
+      actions.className = 'voice-actions';
+
+      const prev = document.createElement('button');
+      prev.textContent = 'Preview';
+      prev.className = 'secondary';
+      prev.onclick = () => previewVoice(v.voice_id);
+      actions.appendChild(prev);
+
+      if (v.voice_id !== 'default') {
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.className = 'danger';
+        del.onclick = () => deleteVoice(v.voice_id);
+        actions.appendChild(del);
+      }
+
+      li.appendChild(actions);
+      list.appendChild(li);
+
+      const opt = document.createElement('option');
+      opt.value = v.voice_id;
+      opt.textContent = `${v.voice_id} (${v.original_filename || ''})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    list.innerHTML = '<li>Failed to load voices</li>';
+  }
+}
+
+function previewVoice(id) {
+  const previewAudio = new Audio(API + `/voices/${id}/preview`);
+  previewAudio.play();
+}
+
+async function uploadVoice() {
+  const msg = document.getElementById('uploadMsg');
+  const fileInput = document.getElementById('voiceFile');
+  if (!fileInput.files.length) { msg.textContent = 'Select a file first.'; msg.className = 'msg err'; return; }
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  msg.textContent = 'Uploading and transcribing reference...';
+  msg.className = 'msg';
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch(API + '/voices', { method: 'POST', headers: headers(), body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    msg.textContent = `Voice created: ${d.voice_id}`;
+    msg.className = 'msg';
+    fileInput.value = '';
+    loadVoices();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = 'msg err';
+  }
+  btn.disabled = false;
+}
+
+async function deleteVoice(id) {
+  if (!confirm(`Delete voice ${id}?`)) return;
+  try {
+    await fetch(API + `/voices/${id}`, { method: 'DELETE', headers: headers() });
+    loadVoices();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+// ===================== ENHANCE (MULTI-REF) =====================
+async function enhanceVoice() {
+  const msg = document.getElementById('enhanceMsg');
+  const voiceId = document.getElementById('enhanceVoiceSelect').value;
+  const fileInput = document.getElementById('enhanceFile');
+  if (!voiceId) { msg.textContent = 'Select a voice.'; msg.className = 'msg err'; return; }
+  if (!fileInput.files.length) { msg.textContent = 'Select an audio file.'; msg.className = 'msg err'; return; }
+  const btn = document.getElementById('enhanceBtn');
+  btn.disabled = true;
+  msg.textContent = 'Uploading and splitting...';
+  msg.className = 'msg';
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch(API + `/voices/${voiceId}/refs`, { method: 'POST', headers: headers(), body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    msg.textContent = `Done! Split into ${d.ref_clips} reference clips. Voice is now multi-reference.`;
+    msg.className = 'msg';
+    fileInput.value = '';
+    loadVoices();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = 'msg err';
+  }
+  btn.disabled = false;
+}
+
+// ===================== GENERATION =====================
+async function generateSpeech() {
+  const voice = document.getElementById('voiceSelect').value;
+  const text = document.getElementById('speakText').value.trim();
+  const msg = document.getElementById('speakMsg');
+  if (!voice) { msg.textContent = 'Select a voice.'; msg.className = 'msg err'; return; }
+  if (!text) { msg.textContent = 'Enter some text.'; msg.className = 'msg err'; return; }
+
+  const engine = document.getElementById('engineSelect').value;
+  lastRequest = { text, voice_id: voice, engine };
+
+  const streaming = document.getElementById('streamToggle').checked;
+  if (streaming) {
+    await generateStreaming(text, voice, engine);
+  } else {
+    await generateComplete(text, voice, engine);
+  }
+}
+
+async function retryGeneration() {
+  if (!lastRequest) return;
+  const streaming = document.getElementById('streamToggle').checked;
+  if (streaming) {
+    await generateStreaming(lastRequest.text, lastRequest.voice_id, lastRequest.engine);
+  } else {
+    await generateComplete(lastRequest.text, lastRequest.voice_id, lastRequest.engine);
+  }
+}
+
+function cancelGeneration() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  isGenerating = false;
+  updateGeneratingUI(false);
+}
+
+function updateGeneratingUI(generating) {
+  document.getElementById('speakBtn').disabled = generating;
+  document.getElementById('retryBtn').style.display = generating ? 'none' : (lastRequest ? 'inline-block' : 'none');
+  document.getElementById('cancelBtn').style.display = generating ? 'inline-block' : 'none';
+}
+
+// --- Complete (non-streaming) ---
+async function generateComplete(text, voice, engine) {
+  const msg = document.getElementById('speakMsg');
+  isGenerating = true;
+  updateGeneratingUI(true);
+  msg.textContent = 'Generating speech...';
+  msg.className = 'msg';
+  document.getElementById('player').classList.remove('visible');
+  document.getElementById('genProgress').classList.remove('visible');
+  stopAudio();
+  chunkAudios = [];
+  currentChunkIndex = 0;
+
+  abortController = new AbortController();
+
+  try {
+    const r = await fetch(API + '/speak', {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice_id: voice, engine }),
+      signal: abortController.signal,
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || r.statusText);
+    }
+    lastBlob = await r.blob();
+    audio.src = URL.createObjectURL(lastBlob);
+    audio.load();
+    document.getElementById('player').classList.add('visible');
+    audio.play();
+    msg.textContent = 'Done.';
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      msg.textContent = 'Cancelled.';
+      msg.className = 'msg';
+    } else {
+      msg.textContent = `Error: ${e.message}`;
+      msg.className = 'msg err';
+    }
+  }
+  isGenerating = false;
+  updateGeneratingUI(false);
+}
+
+// --- Streaming via job polling ---
+async function generateStreaming(text, voice, engine) {
+  const msg = document.getElementById('speakMsg');
+  const genProgress = document.getElementById('genProgress');
+  const genText = document.getElementById('genProgressText');
+  const genFill = document.getElementById('genProgressFill');
+  const genChunk = document.getElementById('genProgressChunk');
+
+  isGenerating = true;
+  updateGeneratingUI(true);
+  msg.textContent = 'Starting...';
+  msg.className = 'msg';
+  document.getElementById('player').classList.remove('visible');
+  genProgress.classList.add('visible');
+  genText.textContent = 'Submitting job...';
+  genFill.style.width = '0%';
+  genChunk.textContent = '';
+  stopAudio();
+
+  chunkAudios = [];
+  currentChunkIndex = 0;
+  lastBlob = null;
+  let firstChunkPlayed = false;
+
+  abortController = new AbortController();
+
+  try {
+    // Start the job
+    const startResp = await fetch(API + '/speak/start', {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice_id: voice, engine }),
+      signal: abortController.signal,
+    });
+    if (!startResp.ok) {
+      const err = await startResp.json().catch(() => ({ detail: startResp.statusText }));
+      throw new Error(err.detail || startResp.statusText);
+    }
+    const { job_id, total_chunks } = await startResp.json();
+    genText.textContent = `Generating ${total_chunks} chunk${total_chunks > 1 ? 's' : ''}...`;
+
+    // Poll for chunks
+    let received = 0;
+    while (true) {
+      if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      await new Promise(r => setTimeout(r, 500));
+
+      const pollResp = await fetch(API + `/speak/poll/${job_id}?after=${received}`, {
+        signal: abortController.signal,
+      });
+      const poll = await pollResp.json();
+
+      // Update progress
+      genText.textContent = `Generating chunk ${poll.current} of ${poll.total}...`;
+      genFill.style.width = (poll.ready / poll.total * 100) + '%';
+
+      // Process new audio chunks (WAV for fast streaming)
+      for (const b64 of poll.chunks) {
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'audio/wav' });
+        chunkAudios.push(blob);
+        received++;
+
+        // Auto-play first chunk
+        if (!firstChunkPlayed) {
+          firstChunkPlayed = true;
+          document.getElementById('player').classList.add('visible');
+          playChunkAudio(0);
+          msg.textContent = 'Playing...';
+        }
+      }
+
+      if (poll.status === 'done') {
+        genText.textContent = 'Complete!';
+        genFill.style.width = '100%';
+        msg.textContent = `Done. ${chunkAudios.length} chunk${chunkAudios.length > 1 ? 's' : ''} generated.`;
+        if (chunkAudios.length > 0) {
+          lastBlob = new Blob(chunkAudios, { type: 'audio/wav' });
+        }
+        break;
+      }
+
+      if (poll.status === 'error') {
+        throw new Error(poll.error || 'Generation failed');
+      }
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      msg.textContent = 'Cancelled.';
+      msg.className = 'msg';
+    } else {
+      msg.textContent = `Error: ${e.message}`;
+      msg.className = 'msg err';
+    }
+  }
+
+  isGenerating = false;
+  updateGeneratingUI(false);
+  genProgress.classList.remove('visible');
+}
+
+function downloadAudio() {
+  const blob = lastBlob || (chunkAudios.length > 0 ? new Blob(chunkAudios, { type: 'audio/mpeg' }) : null);
+  if (!blob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = lastBlob.type === 'audio/wav' ? 'speech.wav' : 'speech.mp3';
+  a.click();
+}
+
+// ===================== INIT =====================
+checkHealth();
+loadVoices();
+loadEngines();
+setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>

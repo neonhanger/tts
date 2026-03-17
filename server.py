@@ -105,10 +105,14 @@ class FlowEngine(TTSEngine):
 
 class CosyEngine(TTSEngine):
     """CosyVoice2 — low latency, emotional control, dialect support.
-    Supports true token-by-token streaming when implemented (#12)."""
+    Runs in a separate venv via subprocess worker."""
+
+    ENGINE_DIR = Path(__file__).parent / "engines" / "cosyvoice"
+    WORKER_SCRIPT = ENGINE_DIR / "worker.py"
+    PYTHON = ENGINE_DIR / "venv" / "Scripts" / "python.exe"
 
     def __init__(self, device: str = "cuda"):
-        self._model = None
+        self._ready = False
         self._device = device
 
     @property
@@ -120,22 +124,50 @@ class CosyEngine(TTSEngine):
         return "Cosy (expressive, low latency)"
 
     def is_loaded(self) -> bool:
-        return self._model is not None
+        return self._ready
 
     def load(self):
-        print("[cosy] CosyVoice2 not yet installed — skipping")
+        if not self.WORKER_SCRIPT.exists() or not self.PYTHON.exists():
+            print("[cosy] CosyVoice2 engine not installed — skipping")
+            return
+        model_dir = self.ENGINE_DIR / "pretrained_models" / "CosyVoice2-0.5B"
+        if not model_dir.exists():
+            print("[cosy] CosyVoice2 model not downloaded — skipping")
+            return
+        self._ready = True
+        print("[cosy] CosyVoice2 ready (subprocess worker)")
 
     def infer(self, gen_text: str, ref_file: str, ref_text: str, file_wave: str):
-        if not self.is_loaded():
-            raise RuntimeError("CosyVoice2 engine not loaded")
-        raise NotImplementedError("CosyVoice2 inference not yet implemented")
+        if not self._ready:
+            raise RuntimeError("CosyVoice2 engine not ready")
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONHASHSEED"}
+        result = subprocess.run(
+            [
+                str(self.PYTHON), str(self.WORKER_SCRIPT),
+                "--text", gen_text,
+                "--ref_audio", str(Path(ref_file).resolve()),
+                "--ref_text", ref_text,
+                "--output", str(Path(file_wave).resolve()),
+            ],
+            capture_output=True, text=True, timeout=300,
+            cwd=str(self.ENGINE_DIR),
+            env=env,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"CosyVoice2 worker failed: {result.stderr[-500:]}")
+        if not os.path.exists(file_wave):
+            raise RuntimeError("CosyVoice2 worker produced no output")
 
 
 class HiggsEngine(TTSEngine):
-    """Higgs Audio V2 — highest quality, needs quantization on 16GB."""
+    """Higgs Audio V2 — highest quality. Runs in a separate venv via subprocess worker."""
+
+    ENGINE_DIR = Path(__file__).parent / "engines" / "higgs"
+    WORKER_SCRIPT = ENGINE_DIR / "worker.py"
+    PYTHON = ENGINE_DIR / "venv" / "Scripts" / "python.exe"
 
     def __init__(self, device: str = "cuda"):
-        self._model = None
+        self._ready = False
         self._device = device
 
     @property
@@ -147,15 +179,39 @@ class HiggsEngine(TTSEngine):
         return "Higgs (highest quality)"
 
     def is_loaded(self) -> bool:
-        return self._model is not None
+        return self._ready
 
     def load(self):
-        print("[higgs] Higgs Audio V2 not yet installed — skipping")
+        if not self.WORKER_SCRIPT.exists() or not self.PYTHON.exists():
+            print("[higgs] Higgs Audio V2 engine not installed — skipping")
+            return
+        model_dir = self.ENGINE_DIR / "models" / "generation"
+        if not model_dir.exists():
+            print("[higgs] Higgs Audio V2 model not downloaded — skipping")
+            return
+        self._ready = True
+        print("[higgs] Higgs Audio V2 ready (subprocess worker)")
 
     def infer(self, gen_text: str, ref_file: str, ref_text: str, file_wave: str):
-        if not self.is_loaded():
-            raise RuntimeError("Higgs Audio V2 engine not loaded")
-        raise NotImplementedError("Higgs Audio V2 inference not yet implemented")
+        if not self._ready:
+            raise RuntimeError("Higgs Audio V2 engine not ready")
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONHASHSEED"}
+        result = subprocess.run(
+            [
+                str(self.PYTHON), str(self.WORKER_SCRIPT),
+                "--text", gen_text,
+                "--ref_audio", str(Path(ref_file).resolve()),
+                "--ref_text", ref_text,
+                "--output", str(Path(file_wave).resolve()),
+            ],
+            capture_output=True, text=True, timeout=600,
+            cwd=str(self.ENGINE_DIR),
+            env=env,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Higgs Audio V2 worker failed: {result.stderr[-500:]}")
+        if not os.path.exists(file_wave):
+            raise RuntimeError("Higgs Audio V2 worker produced no output")
 
 
 class EnsembleEngine(TTSEngine):
@@ -173,11 +229,11 @@ class EnsembleEngine(TTSEngine):
         return "Ensemble (best of multiple)"
 
     def is_loaded(self) -> bool:
-        loaded = [e for e in self._engines.values() if e.is_loaded() and e.engine_id != "ensemble"]
+        loaded = [e for e in self._engines.values() if e.engine_id != "ensemble" and e.is_loaded()]
         return len(loaded) >= 2
 
     def infer(self, gen_text: str, ref_file: str, ref_text: str, file_wave: str):
-        loaded = [e for e in self._engines.values() if e.is_loaded() and e.engine_id != "ensemble"]
+        loaded = [e for e in self._engines.values() if e.engine_id != "ensemble" and e.is_loaded()]
         if len(loaded) < 2:
             raise RuntimeError("Ensemble needs at least 2 loaded engines")
         best_score, best_path = -1, None

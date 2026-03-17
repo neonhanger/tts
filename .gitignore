@@ -8,3 +8,4 @@ cache/
 *.wav.tmp
 test_output.*
 samples/
+engines/

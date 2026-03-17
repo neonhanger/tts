@@ -3,5 +3,8 @@ __pycache__/
 *.pyc
 .env
 voices/
+cache/
 *.tmp
 *.wav.tmp
+test_output.*
+samples/

@@ -140,9 +140,37 @@
   .gen-progress-fill { height: 100%; background: #059669; border-radius: 2px; width: 0%; transition: width 0.3s; }
   .gen-progress-text { color: #888; }
   .gen-progress-chunk { color: #4ade80; margin-top: .3rem; font-size: .8rem; }
-  .toggle-row { display: flex; gap: 1rem; align-items: center; margin-bottom: .8rem; }
+  .toggle-row { display: flex; gap: 1rem; align-items: center; margin-bottom: .8rem; flex-wrap: wrap; }
   .toggle-label { font-size: .85rem; color: #aaa; cursor: pointer; display: flex; align-items: center; gap: .3rem; }
   .toggle-label input { accent-color: #2563eb; }
+
+  .quality-badge {
+    display: inline-block;
+    padding: .1rem .4rem;
+    border-radius: 3px;
+    font-size: .7rem;
+    font-weight: 600;
+    margin-left: .4rem;
+  }
+  .quality-excellent { background: #065f46; color: #6ee7b7; }
+  .quality-good { background: #1e3a5f; color: #93c5fd; }
+  .quality-fair { background: #713f12; color: #fcd34d; }
+  .quality-poor { background: #7f1d1d; color: #fca5a5; }
+  .lang-badge {
+    display: inline-block;
+    padding: .1rem .3rem;
+    border-radius: 3px;
+    font-size: .7rem;
+    background: #1e293b;
+    color: #94a3b8;
+    margin-left: .3rem;
+  }
+
+  input[type="range"] { accent-color: #2563eb; }
+  .slider-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .8rem; }
+  .slider-row label { margin-bottom: 0; min-width: 60px; }
+  .slider-row input[type="range"] { flex: 1; margin-bottom: 0; }
+  .slider-val { font-size: .8rem; color: #888; min-width: 30px; }
 </style>
 </head>
 <body>
@@ -198,6 +226,29 @@
   <div id="enhanceMsg" class="msg"></div>
 </section>
 
+<!-- Voice Mixing (#9) -->
+<section>
+  <h2>Voice Mixing</h2>
+  <p style="font-size:.82rem; color:#888; margin-bottom:.8rem;">Blend two voice profiles to create a unique voice.</p>
+  <div style="display:flex; gap:1rem;">
+    <div style="flex:1;">
+      <label>Voice A</label>
+      <select id="mixVoiceA"><option value="">-- select --</option></select>
+    </div>
+    <div style="flex:1;">
+      <label>Voice B</label>
+      <select id="mixVoiceB"><option value="">-- select --</option></select>
+    </div>
+  </div>
+  <div class="slider-row">
+    <label>Blend</label>
+    <input type="range" id="mixRatio" min="0" max="100" value="50" oninput="document.getElementById('mixRatioVal').textContent=this.value+'%'">
+    <span class="slider-val" id="mixRatioVal">50%</span>
+  </div>
+  <button onclick="mixVoices()">Mix</button>
+  <div id="mixMsg" class="msg"></div>
+</section>
+
 <!-- Generate Speech -->
 <section>
   <h2>Generate Speech</h2>
@@ -211,17 +262,57 @@
       <select id="engineSelect"><option value="">loading...</option></select>
     </div>
   </div>
+  <div style="display:flex; gap:1rem;">
+    <div style="flex:1;">
+      <label>Emotion (optional)</label>
+      <select id="emotionSelect">
+        <option value="">-- auto --</option>
+        <option value="calm">Calm</option>
+        <option value="happy">Happy</option>
+        <option value="sad">Sad</option>
+        <option value="angry">Angry</option>
+        <option value="urgent">Urgent</option>
+      </select>
+    </div>
+    <div style="flex:1;">
+      <label>Language <span class="lang-badge" id="langBadge">--</span></label>
+      <span style="font-size:.8rem; color:#666;">Auto-detected from text</span>
+    </div>
+  </div>
   <label>Text</label>
-  <textarea id="speakText">One rainy afternoon, a young woman brought in a silver pocket watch that had stopped entirely. "It belonged to my grandfather," she said softly. "It stopped the exact moment he passed away." The old watchmaker held it carefully, turning it over in his weathered hands. "Some things don't want to be fixed," he replied. "They want to be remembered."</textarea>
+  <textarea id="speakText" oninput="detectLanguage()">One rainy afternoon, a young woman brought in a silver pocket watch that had stopped entirely. "It belonged to my grandfather," she said softly. "It stopped the exact moment he passed away." The old watchmaker held it carefully, turning it over in his weathered hands. "Some things don't want to be fixed," he replied. "They want to be remembered."</textarea>
   <div class="toggle-row">
     <label class="toggle-label">
-      <input type="checkbox" id="streamToggle" checked> Stream (play as generated)
+      <input type="checkbox" id="streamToggle" checked> Stream
     </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="wsToggle"> WebSocket
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="ssmlToggle"> SSML
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="postprocessToggle" checked> Post-process
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="cacheToggle" checked> Cache
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="cherryPickToggle"> Cherry-pick
+    </label>
+  </div>
+  <div id="cherryPickOptions" style="display:none; margin-bottom:.8rem;">
+    <div class="slider-row">
+      <label>Takes</label>
+      <input type="range" id="takesSlider" min="2" max="5" value="3" oninput="document.getElementById('takesVal').textContent=this.value">
+      <span class="slider-val" id="takesVal">3</span>
+    </div>
   </div>
   <div class="row">
     <button id="speakBtn" onclick="generateSpeech()">Generate</button>
     <button id="retryBtn" class="warning" style="display:none" onclick="retryGeneration()">Retry</button>
     <button id="cancelBtn" class="danger" style="display:none" onclick="cancelGeneration()">Cancel</button>
+    <span id="cacheHit" style="font-size:.75rem; color:#4ade80; display:none;">CACHED</span>
   </div>
   <div id="speakMsg" class="msg"></div>
 
@@ -258,6 +349,15 @@
   </div>
 </section>
 
+<!-- Cache stats -->
+<section>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2 style="margin-bottom:0;">Cache</h2>
+    <span id="cacheStats" style="font-size:.8rem; color:#888;">--</span>
+  </div>
+  <button class="danger" onclick="clearCache()" style="margin-top:.6rem; font-size:.8rem; padding:.3rem .8rem;">Clear Cache</button>
+</section>
+
 </div>
 
 <!-- ==================== DOCS TAB ==================== -->
@@ -289,47 +389,63 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
 python server.py</pre>
   <p>The server starts on <code>http://0.0.0.0:8000</code>. Open it in a browser to use the web UI.</p>
 
-  <h3>Windows Setup Notes</h3>
-  <p><strong>PyTorch CUDA:</strong> pip installs CPU-only PyTorch by default. Reinstall with CUDA:</p>
-  <pre>pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128 --force-reinstall</pre>
-  <p><strong>FFmpeg shared DLLs:</strong></p>
-  <pre>winget install Gyan.FFmpeg.Shared</pre>
-  <p>The run.bat script handles adding the DLL path automatically.</p>
-
   <h3>Configuration</h3>
   <table>
     <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>TTS_DEVICE</code></td><td>cuda</td><td>Device for inference (<code>cuda</code> or <code>cpu</code>)</td></tr>
-    <tr><td><code>API_KEY</code></td><td><em>unset</em></td><td>If set, all requests require <code>X-API-Key</code> header. Leave unset for local use. Set when exposing over network.</td></tr>
+    <tr><td><code>TTS_DEVICE</code></td><td>cuda</td><td>Device for inference</td></tr>
+    <tr><td><code>API_KEY</code></td><td><em>unset</em></td><td>Require <code>X-API-Key</code> header</td></tr>
+    <tr><td><code>CACHE_MAX_SIZE</code></td><td>100</td><td>Max cached responses</td></tr>
+    <tr><td><code>PP_NORMALIZE</code></td><td>1</td><td>Enable loudness normalization</td></tr>
+    <tr><td><code>PP_TARGET_LUFS</code></td><td>-16</td><td>Target loudness (LUFS)</td></tr>
+    <tr><td><code>PP_HIGHPASS_HZ</code></td><td>80</td><td>High-pass filter cutoff (0 to disable)</td></tr>
+    <tr><td><code>WHATSAPP_VERIFY_TOKEN</code></td><td><em>unset</em></td><td>WhatsApp webhook verify token</td></tr>
+    <tr><td><code>WHATSAPP_ACCESS_TOKEN</code></td><td><em>unset</em></td><td>WhatsApp Cloud API access token</td></tr>
+    <tr><td><code>WHATSAPP_PHONE_ID</code></td><td><em>unset</em></td><td>WhatsApp Business phone number ID</td></tr>
+    <tr><td><code>WHATSAPP_DEFAULT_VOICE</code></td><td>default</td><td>Default voice for WhatsApp messages</td></tr>
   </table>
 
-  <h3>API Key / Authentication</h3>
-  <p>Authentication is <strong>off by default</strong> for local use. Set <code>API_KEY</code> when exposing to other devices:</p>
-  <pre>
-# Windows
-set API_KEY=my-secret-key
-python server.py
-
-# Linux
-API_KEY=my-secret-key python server.py</pre>
+  <h3>Features</h3>
+  <ul>
+    <li><strong>Multi-engine</strong> &mdash; Flow (F5-TTS), Cosy (CosyVoice2), Higgs (Higgs Audio V2), Ensemble</li>
+    <li><strong>Voice quality scoring</strong> &mdash; auto-rates uploaded samples on duration, SNR, clipping</li>
+    <li><strong>Multi-reference mode</strong> &mdash; upload longer audio, auto-split into reference clips</li>
+    <li><strong>Voice mixing</strong> &mdash; blend two voice profiles with adjustable ratio</li>
+    <li><strong>Emotion control</strong> &mdash; tag reference clips with emotions, select per request</li>
+    <li><strong>SSML support</strong> &mdash; <code>&lt;break&gt;</code> tags for pauses, strips other SSML tags</li>
+    <li><strong>Multi-language</strong> &mdash; auto-detects input language via Unicode script analysis</li>
+    <li><strong>Streaming</strong> &mdash; poll-based or WebSocket real-time chunk delivery</li>
+    <li><strong>Post-processing</strong> &mdash; loudness normalization + high-pass filter via ffmpeg</li>
+    <li><strong>Response caching</strong> &mdash; LRU cache for identical requests</li>
+    <li><strong>Cherry-pick</strong> &mdash; generate multiple takes, return the best by quality score</li>
+    <li><strong>WhatsApp integration</strong> &mdash; webhook for text-to-voice-message (scaffold)</li>
+    <li><strong>Fine-tuning</strong> &mdash; endpoint scaffold for future model fine-tuning</li>
+  </ul>
 
   <h3>Voice Profiles</h3>
   <p>Stored in <code>./voices/</code>. Each contains:</p>
   <ul>
     <li><code>reference.wav</code> &mdash; the reference audio</li>
-    <li><code>meta.json</code> &mdash; voice ID and metadata</li>
-    <li><code>ref_text.txt</code> &mdash; pre-transcribed reference text (speeds up inference)</li>
+    <li><code>meta.json</code> &mdash; voice ID, metadata, quality score</li>
+    <li><code>ref_text.txt</code> &mdash; pre-transcribed reference text</li>
+    <li><code>refs/</code> &mdash; multi-reference clips (optional)</li>
+    <li><code>emotions.json</code> &mdash; emotion tags per reference clip (optional)</li>
   </ul>
-  <p>For best results: <strong>5-10 seconds</strong>, clear speech, minimal background noise. You can preview the reference audio before selecting a voice.</p>
 
-  <h3>Streaming</h3>
-  <p>When streaming is enabled, audio is generated chunk by chunk and sent to the browser via Server-Sent Events (SSE). You hear audio within seconds of hitting Generate, even for long text. Each sentence chunk is generated independently and played sequentially.</p>
+  <h3>SSML Support</h3>
+  <p>Enable the SSML toggle to use basic SSML tags in your text input:</p>
+  <pre>&lt;break time="500ms"/&gt;  &mdash; insert a pause
+&lt;break time="1s"/&gt;     &mdash; longer pause
+&lt;emphasis&gt;word&lt;/emphasis&gt; &mdash; stripped (no engine support yet)</pre>
 
-  <h3>Text Chunking</h3>
-  <p>Long text is automatically split at sentence boundaries (~200 chars each). Each chunk is generated separately for better quality and enables streaming playback.</p>
+  <h3>Post-Processing Pipeline</h3>
+  <p>When enabled, each generated audio chunk passes through:</p>
+  <ul>
+    <li><strong>High-pass filter</strong> (80 Hz) &mdash; removes rumble and low-frequency noise</li>
+    <li><strong>Loudness normalization</strong> (LUFS -16) &mdash; consistent volume across chunks</li>
+  </ul>
 
-  <h3>Retry Logic</h3>
-  <p>Each chunk is retried up to 2 times on failure. If generation still fails, use the Retry button to try again. The GPU lock ensures only one generation runs at a time &mdash; additional requests queue up.</p>
+  <h3>WhatsApp Integration</h3>
+  <p>Set up a Meta WhatsApp Business account and configure the webhook URL to <code>/whatsapp/webhook</code>. Users can send text and receive voice messages. Use <code>!voice voice_id text</code> to select a voice.</p>
 
   <h3>Performance</h3>
   <table>
@@ -337,9 +453,6 @@ API_KEY=my-secret-key python server.py</pre>
     <tr><td>RTX 5080</td><td>~10-50x realtime</td><td>~4-6 GB</td></tr>
     <tr><td>CPU only</td><td>~0.5-1x realtime</td><td>~4GB RAM</td></tr>
   </table>
-
-  <h3>Network Access</h3>
-  <p>Binds to <code>0.0.0.0:8000</code>. Use <strong>Tailscale</strong> for secure remote access.</p>
 
 </section>
 </div>
@@ -351,54 +464,97 @@ API_KEY=my-secret-key python server.py</pre>
   <h2>API Reference</h2>
 
   <h3>GET /health</h3>
-  <pre>{ "status": "ok", "model_loaded": true, "queue_size": 0 }</pre>
+  <pre>{ "status": "ok", "engines": {...}, "queue_size": 0, "cache_size": 5 }</pre>
+
+  <h3>GET /engines</h3>
+  <pre>[{ "id": "flow", "name": "Flow (fast, reliable)", "loaded": true }]</pre>
+
+  <h3>POST /detect-language</h3>
+  <p>Detect language from text.</p>
+  <pre>curl -X POST http://localhost:8000/detect-language -d "text=Hello world"
+{ "language": "en", "confidence": 1.0, "script": "latin" }</pre>
 
   <h3>GET /voices</h3>
-  <pre>[{ "voice_id": "default", "original_filename": "basic_ref_en.wav", "ref_text": "..." }]</pre>
+  <pre>[{ "voice_id": "default", "original_filename": "...", "quality": {...} }]</pre>
 
   <h3>POST /voices</h3>
-  <p>Upload voice sample. Reference audio is auto-transcribed on upload for faster inference.</p>
+  <p>Upload voice sample. Auto-transcribes and quality-scores on upload.</p>
   <pre>curl -X POST http://localhost:8000/voices -F "file=@voice.wav"</pre>
 
+  <h3>GET /voices/{voice_id}/quality</h3>
+  <p>Get quality analysis for a voice's reference audio.</p>
+  <pre>{ "score": 85, "grade": "excellent", "duration": 7.2, "issues": [], "tips": [] }</pre>
+
   <h3>GET /voices/{voice_id}/preview</h3>
-  <p>Returns the reference audio WAV for previewing the voice.</p>
+  <p>Returns the reference audio WAV.</p>
 
   <h3>DELETE /voices/{voice_id}</h3>
   <pre>curl -X DELETE http://localhost:8000/voices/abc123</pre>
 
-  <h3>POST /speak</h3>
-  <p>Generate complete MP3. Blocks until all chunks are done.</p>
-  <pre>
-curl -X POST http://localhost:8000/speak \
+  <h3>POST /voices/{voice_id}/refs</h3>
+  <p>Upload longer audio for multi-reference mode. Auto-splits into clips.</p>
+
+  <h3>GET /voices/{voice_id}/refs</h3>
+  <p>List reference clips with durations and emotion tags.</p>
+
+  <h3>POST /voices/{voice_id}/refs/{ref_name}/emotion?emotion=happy</h3>
+  <p>Tag a reference clip with an emotion label.</p>
+
+  <h3>POST /voices/mix</h3>
+  <p>Blend two voice profiles.</p>
+  <pre>curl -X POST http://localhost:8000/voices/mix \
   -H "Content-Type: application/json" \
-  -d '{"text": "Hello world", "voice_id": "default"}' \
+  -d '{"voice_a": "abc123", "voice_b": "def456", "ratio": 0.6}'</pre>
+
+  <h3>POST /voices/{voice_id}/train</h3>
+  <p>Start fine-tuning (scaffold &mdash; returns 501).</p>
+
+  <h3>POST /speak</h3>
+  <p>Generate complete MP3. Supports emotion, SSML, caching, post-processing.</p>
+  <pre>curl -X POST http://localhost:8000/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello", "voice_id": "default", "emotion": "calm", "ssml": false, "postprocess": true, "cache": true}' \
   --output speech.mp3</pre>
+  <p>Response headers: <code>X-Cache: hit|miss</code>, <code>X-Language: en</code></p>
 
-  <h3>POST /speak/stream</h3>
-  <p>Stream generation via Server-Sent Events. Each chunk is sent as a base64-encoded MP3.</p>
-  <p>Events:</p>
-  <table>
-    <tr><th>Event</th><th>Data</th></tr>
-    <tr><td><code>info</code></td><td><code>{ "job_id": "...", "total_chunks": 3 }</code></td></tr>
-    <tr><td><code>progress</code></td><td><code>{ "chunk": 1, "total": 3, "text": "..." }</code></td></tr>
-    <tr><td><code>audio</code></td><td><code>{ "chunk": 1, "total": 3, "audio_b64": "..." }</code></td></tr>
-    <tr><td><code>done</code></td><td><code>{ "status": "complete" }</code></td></tr>
-    <tr><td><code>error</code></td><td><code>{ "detail": "..." }</code></td></tr>
-  </table>
+  <h3>POST /speak/candidates?takes=3</h3>
+  <p>Cherry-pick: generate multiple takes, return best by quality score.</p>
+  <p>Response headers: <code>X-Candidates: [{"take":1,"score":82.3},...]</code>, <code>X-Best-Score: 82.3</code></p>
+
+  <h3>POST /speak/start</h3>
+  <p>Start streaming job (poll-based).</p>
+  <pre>{ "job_id": "abc123", "total_chunks": 3 }</pre>
+
+  <h3>GET /speak/poll/{job_id}?after=0</h3>
+  <p>Poll for new audio chunks.</p>
+
+  <h3>WebSocket /ws/speak</h3>
+  <p>Real-time streaming. Send JSON config, receive binary WAV chunks.</p>
   <pre>
-// JavaScript example
-const es = new EventSource('/speak/stream', { method: 'POST', ... });
-// Note: EventSource is GET-only. Use fetch with ReadableStream instead:
-const resp = await fetch('/speak/stream', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ text: '...', voice_id: 'default' })
-});
-// Parse SSE from response body stream</pre>
+// Connect
+const ws = new WebSocket('ws://localhost:8000/ws/speak');
+ws.onopen = () => ws.send(JSON.stringify({
+  text: 'Hello world',
+  voice_id: 'default',
+  engine: 'flow',
+  emotion: 'calm',
+  ssml: false,
+  postprocess: true
+}));
+// Receive: JSON messages (info/progress/done/error) + binary WAV chunks</pre>
 
-  <h3>GET /queue</h3>
-  <p>Current queue status.</p>
-  <pre>{ "queue_size": 1, "jobs": ["abc123"] }</pre>
+  <h3>GET /cache/stats</h3>
+  <pre>{ "size": 5, "max_size": 100 }</pre>
+
+  <h3>DELETE /cache</h3>
+  <p>Clear all cached responses.</p>
+
+  <h3>GET /whatsapp/webhook</h3>
+  <p>WhatsApp verification endpoint.</p>
+
+  <h3>POST /whatsapp/webhook</h3>
+  <p>Incoming WhatsApp message handler. Generates TTS and replies with voice message.</p>
+  <p>Voice command: <code>!voice pride_prejudice Hello there</code></p>
 
   <h3>Authentication</h3>
   <p>Header: <code>X-API-Key: your-key</code>. Only required if <code>API_KEY</code> env var is set.</p>
@@ -409,7 +565,8 @@ const resp = await fetch('/speak/stream', {
     <tr><td>401</td><td>Invalid API key</td></tr>
     <tr><td>404</td><td>Voice not found</td></tr>
     <tr><td>500</td><td>Inference failed</td></tr>
-    <tr><td>503</td><td>Model not loaded</td></tr>
+    <tr><td>501</td><td>Not implemented (fine-tuning, WhatsApp)</td></tr>
+    <tr><td>503</td><td>Engine not loaded</td></tr>
   </table>
 
 </section>
@@ -423,6 +580,7 @@ let isPlaying = false;
 let isGenerating = false;
 let abortController = null;
 let lastRequest = null;
+let langDetectTimer = null;
 
 // Audio chunk queue for streaming
 let audioChunks = [];
@@ -449,6 +607,11 @@ function formatTime(s) {
   return Math.floor(s / 60) + ':' + Math.floor(s % 60).toString().padStart(2, '0');
 }
 
+// Cherry-pick toggle
+document.getElementById('cherryPickToggle').addEventListener('change', function() {
+  document.getElementById('cherryPickOptions').style.display = this.checked ? 'block' : 'none';
+});
+
 // ===================== PLAYER =====================
 audio.addEventListener('timeupdate', () => {
   const fill = document.getElementById('progressFill');
@@ -460,7 +623,6 @@ audio.addEventListener('timeupdate', () => {
 });
 
 audio.addEventListener('ended', () => {
-  // If streaming, play next chunk
   if (chunkAudios.length > 0 && currentChunkIndex < chunkAudios.length - 1) {
     currentChunkIndex++;
     playChunkAudio(currentChunkIndex);
@@ -516,6 +678,22 @@ function playChunkAudio(index) {
   audio.play();
 }
 
+// ===================== LANGUAGE DETECTION (#6) =====================
+function detectLanguage() {
+  clearTimeout(langDetectTimer);
+  langDetectTimer = setTimeout(async () => {
+    const text = document.getElementById('speakText').value.trim();
+    if (!text) { document.getElementById('langBadge').textContent = '--'; return; }
+    try {
+      const fd = new FormData();
+      fd.append('text', text);
+      const r = await fetch(API + '/detect-language', { method: 'POST', body: fd });
+      const d = await r.json();
+      document.getElementById('langBadge').textContent = d.language.toUpperCase();
+    } catch { document.getElementById('langBadge').textContent = '--'; }
+  }, 500);
+}
+
 // ===================== HEALTH =====================
 async function checkHealth() {
   const el = document.getElementById('healthDot');
@@ -537,6 +715,8 @@ async function checkHealth() {
       el.textContent = 'no engines loaded';
       el.className = 'health down';
     }
+    // Update cache stats
+    document.getElementById('cacheStats').textContent = `${d.cache_size || 0} cached responses`;
   } catch {
     el.textContent = 'offline';
     el.className = 'health down';
@@ -575,17 +755,30 @@ async function loadVoices() {
       return;
     }
     const enhSel = document.getElementById('enhanceVoiceSelect');
+    const mixA = document.getElementById('mixVoiceA');
+    const mixB = document.getElementById('mixVoiceB');
     enhSel.innerHTML = '<option value="">-- select voice --</option>';
+    mixA.innerHTML = '<option value="">-- select --</option>';
+    mixB.innerHTML = '<option value="">-- select --</option>';
     list.innerHTML = '';
     voices.forEach(v => {
       const mode = v.mode === 'multi-reference' ? ` [${v.ref_count || '?'} refs]` : '';
+      const q = v.quality;
+      let qualityHtml = '';
+      if (q && q.grade) {
+        qualityHtml = ` <span class="quality-badge quality-${q.grade}">${q.score} ${q.grade}</span>`;
+      }
       const li = document.createElement('li');
-      li.innerHTML = `<span><span class="voice-id">${v.voice_id}</span> &mdash; ${v.original_filename || 'unknown'}${mode}</span>`;
-      // enhance select
-      const eopt = document.createElement('option');
-      eopt.value = v.voice_id;
-      eopt.textContent = `${v.voice_id} (${v.original_filename || ''})`;
-      enhSel.appendChild(eopt);
+      li.innerHTML = `<span><span class="voice-id">${v.voice_id}</span> &mdash; ${v.original_filename || 'unknown'}${mode}${qualityHtml}</span>`;
+
+      // Populate selects
+      [enhSel, mixA, mixB].forEach(s => {
+        const eopt = document.createElement('option');
+        eopt.value = v.voice_id;
+        eopt.textContent = `${v.voice_id} (${v.original_filename || ''})`;
+        s.appendChild(eopt);
+      });
+
       const actions = document.createElement('div');
       actions.className = 'voice-actions';
 
@@ -627,7 +820,7 @@ async function uploadVoice() {
   if (!fileInput.files.length) { msg.textContent = 'Select a file first.'; msg.className = 'msg err'; return; }
   const btn = document.getElementById('uploadBtn');
   btn.disabled = true;
-  msg.textContent = 'Uploading and transcribing reference...';
+  msg.textContent = 'Uploading, transcribing, and scoring...';
   msg.className = 'msg';
   const fd = new FormData();
   fd.append('file', fileInput.files[0]);
@@ -635,7 +828,14 @@ async function uploadVoice() {
     const r = await fetch(API + '/voices', { method: 'POST', headers: headers(), body: fd });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     const d = await r.json();
-    msg.textContent = `Voice created: ${d.voice_id}`;
+    const q = d.quality;
+    let qText = '';
+    if (q) {
+      qText = ` | Quality: ${q.score}/100 (${q.grade})`;
+      if (q.issues.length) qText += ` — ${q.issues.join(', ')}`;
+      if (q.tips.length) qText += `. Tips: ${q.tips.join('; ')}`;
+    }
+    msg.textContent = `Voice created: ${d.voice_id}${qText}`;
     msg.className = 'msg';
     fileInput.value = '';
     loadVoices();
@@ -684,6 +884,43 @@ async function enhanceVoice() {
   btn.disabled = false;
 }
 
+// ===================== VOICE MIXING (#9) =====================
+async function mixVoices() {
+  const msg = document.getElementById('mixMsg');
+  const voiceA = document.getElementById('mixVoiceA').value;
+  const voiceB = document.getElementById('mixVoiceB').value;
+  const ratio = parseInt(document.getElementById('mixRatio').value) / 100;
+  if (!voiceA || !voiceB) { msg.textContent = 'Select both voices.'; msg.className = 'msg err'; return; }
+  if (voiceA === voiceB) { msg.textContent = 'Select two different voices.'; msg.className = 'msg err'; return; }
+  msg.textContent = 'Mixing...';
+  msg.className = 'msg';
+  try {
+    const r = await fetch(API + '/voices/mix', {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice_a: voiceA, voice_b: voiceB, ratio }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    msg.textContent = `Mixed voice created: ${d.voice_id}`;
+    msg.className = 'msg';
+    loadVoices();
+  } catch (e) {
+    msg.textContent = `Error: ${e.message}`;
+    msg.className = 'msg err';
+  }
+}
+
+// ===================== CACHE (#10) =====================
+async function clearCache() {
+  try {
+    await fetch(API + '/cache', { method: 'DELETE', headers: headers() });
+    document.getElementById('cacheStats').textContent = '0 cached responses';
+  } catch (e) {
+    alert('Failed: ' + e.message);
+  }
+}
+
 // ===================== GENERATION =====================
 async function generateSpeech() {
   const voice = document.getElementById('voiceSelect').value;
@@ -693,24 +930,41 @@ async function generateSpeech() {
   if (!text) { msg.textContent = 'Enter some text.'; msg.className = 'msg err'; return; }
 
   const engine = document.getElementById('engineSelect').value;
-  lastRequest = { text, voice_id: voice, engine };
+  const emotion = document.getElementById('emotionSelect').value || undefined;
+  const ssml = document.getElementById('ssmlToggle').checked;
+  const postprocess = document.getElementById('postprocessToggle').checked;
+  const cache = document.getElementById('cacheToggle').checked;
+
+  lastRequest = { text, voice_id: voice, engine, emotion, ssml, postprocess, cache };
+
+  document.getElementById('cacheHit').style.display = 'none';
+
+  const cherryPick = document.getElementById('cherryPickToggle').checked;
+  if (cherryPick) {
+    await generateCherryPick(lastRequest);
+    return;
+  }
 
   const streaming = document.getElementById('streamToggle').checked;
-  if (streaming) {
-    await generateStreaming(text, voice, engine);
+  const useWs = document.getElementById('wsToggle').checked;
+  if (streaming && useWs) {
+    await generateWebSocket(lastRequest);
+  } else if (streaming) {
+    await generateStreaming(lastRequest);
   } else {
-    await generateComplete(text, voice, engine);
+    await generateComplete(lastRequest);
   }
 }
 
 async function retryGeneration() {
   if (!lastRequest) return;
+  const cherryPick = document.getElementById('cherryPickToggle').checked;
+  if (cherryPick) { await generateCherryPick(lastRequest); return; }
   const streaming = document.getElementById('streamToggle').checked;
-  if (streaming) {
-    await generateStreaming(lastRequest.text, lastRequest.voice_id, lastRequest.engine);
-  } else {
-    await generateComplete(lastRequest.text, lastRequest.voice_id, lastRequest.engine);
-  }
+  const useWs = document.getElementById('wsToggle').checked;
+  if (streaming && useWs) { await generateWebSocket(lastRequest); }
+  else if (streaming) { await generateStreaming(lastRequest); }
+  else { await generateComplete(lastRequest); }
 }
 
 function cancelGeneration() {
@@ -729,7 +983,7 @@ function updateGeneratingUI(generating) {
 }
 
 // --- Complete (non-streaming) ---
-async function generateComplete(text, voice, engine) {
+async function generateComplete(req) {
   const msg = document.getElementById('speakMsg');
   isGenerating = true;
   updateGeneratingUI(true);
@@ -740,19 +994,21 @@ async function generateComplete(text, voice, engine) {
   stopAudio();
   chunkAudios = [];
   currentChunkIndex = 0;
-
   abortController = new AbortController();
 
   try {
     const r = await fetch(API + '/speak', {
       method: 'POST',
       headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice_id: voice, engine }),
+      body: JSON.stringify(req),
       signal: abortController.signal,
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({ detail: r.statusText }));
       throw new Error(err.detail || r.statusText);
+    }
+    if (r.headers.get('X-Cache') === 'hit') {
+      document.getElementById('cacheHit').style.display = 'inline';
     }
     lastBlob = await r.blob();
     audio.src = URL.createObjectURL(lastBlob);
@@ -773,8 +1029,61 @@ async function generateComplete(text, voice, engine) {
   updateGeneratingUI(false);
 }
 
+// --- Cherry-pick (#14) ---
+async function generateCherryPick(req) {
+  const msg = document.getElementById('speakMsg');
+  const takes = parseInt(document.getElementById('takesSlider').value);
+  isGenerating = true;
+  updateGeneratingUI(true);
+  msg.textContent = `Generating ${takes} takes (cherry-pick)...`;
+  msg.className = 'msg';
+  document.getElementById('player').classList.remove('visible');
+  document.getElementById('genProgress').classList.remove('visible');
+  stopAudio();
+  chunkAudios = [];
+  abortController = new AbortController();
+
+  try {
+    const r = await fetch(API + `/speak/candidates?takes=${takes}`, {
+      method: 'POST',
+      headers: { ...headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+      signal: abortController.signal,
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || r.statusText);
+    }
+    const scores = r.headers.get('X-Candidates');
+    const bestScore = r.headers.get('X-Best-Score');
+    lastBlob = await r.blob();
+    audio.src = URL.createObjectURL(lastBlob);
+    audio.load();
+    document.getElementById('player').classList.add('visible');
+    audio.play();
+    let info = `Best of ${takes} takes`;
+    if (bestScore) info += ` (score: ${bestScore})`;
+    if (scores) {
+      try {
+        const parsed = JSON.parse(scores);
+        info += ` | All: ${parsed.map(c => `#${c.take}=${c.score}`).join(', ')}`;
+      } catch {}
+    }
+    msg.textContent = info;
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      msg.textContent = 'Cancelled.';
+    } else {
+      msg.textContent = `Error: ${e.message}`;
+      msg.className = 'msg err';
+    }
+  }
+  isGenerating = false;
+  updateGeneratingUI(false);
+}
+
 // --- Streaming via job polling ---
-async function generateStreaming(text, voice, engine) {
+async function generateStreaming(req) {
   const msg = document.getElementById('speakMsg');
   const genProgress = document.getElementById('genProgress');
   const genText = document.getElementById('genProgressText');
@@ -800,11 +1109,10 @@ async function generateStreaming(text, voice, engine) {
   abortController = new AbortController();
 
   try {
-    // Start the job
     const startResp = await fetch(API + '/speak/start', {
       method: 'POST',
       headers: { ...headers(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voice_id: voice, engine }),
+      body: JSON.stringify(req),
       signal: abortController.signal,
     });
     if (!startResp.ok) {
@@ -814,7 +1122,6 @@ async function generateStreaming(text, voice, engine) {
     const { job_id, total_chunks } = await startResp.json();
     genText.textContent = `Generating ${total_chunks} chunk${total_chunks > 1 ? 's' : ''}...`;
 
-    // Poll for chunks
     let received = 0;
     while (true) {
       if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -826,11 +1133,9 @@ async function generateStreaming(text, voice, engine) {
       });
       const poll = await pollResp.json();
 
-      // Update progress
       genText.textContent = `Generating chunk ${poll.current} of ${poll.total}...`;
       genFill.style.width = (poll.ready / poll.total * 100) + '%';
 
-      // Process new audio chunks (WAV for fast streaming)
       for (const b64 of poll.chunks) {
         const binary = atob(b64);
         const bytes = new Uint8Array(binary.length);
@@ -839,7 +1144,6 @@ async function generateStreaming(text, voice, engine) {
         chunkAudios.push(blob);
         received++;
 
-        // Auto-play first chunk
         if (!firstChunkPlayed) {
           firstChunkPlayed = true;
           document.getElementById('player').classList.add('visible');
@@ -877,12 +1181,102 @@ async function generateStreaming(text, voice, engine) {
   genProgress.classList.remove('visible');
 }
 
+// --- WebSocket streaming (#7) ---
+async function generateWebSocket(req) {
+  const msg = document.getElementById('speakMsg');
+  const genProgress = document.getElementById('genProgress');
+  const genText = document.getElementById('genProgressText');
+  const genFill = document.getElementById('genProgressFill');
+
+  isGenerating = true;
+  updateGeneratingUI(true);
+  msg.textContent = 'Connecting WebSocket...';
+  msg.className = 'msg';
+  document.getElementById('player').classList.remove('visible');
+  genProgress.classList.add('visible');
+  genText.textContent = 'Connecting...';
+  genFill.style.width = '0%';
+  stopAudio();
+
+  chunkAudios = [];
+  currentChunkIndex = 0;
+  lastBlob = null;
+  let firstChunkPlayed = false;
+  let totalChunks = 1;
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws/speak`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify(req));
+    genText.textContent = 'Generating...';
+  };
+
+  ws.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+      const data = JSON.parse(event.data);
+      if (data.type === 'info') {
+        totalChunks = data.total_chunks;
+        genText.textContent = `Generating ${totalChunks} chunks...`;
+      } else if (data.type === 'progress') {
+        genText.textContent = `Generating chunk ${data.chunk} of ${data.total}...`;
+        genFill.style.width = ((data.chunk - 1) / data.total * 100) + '%';
+      } else if (data.type === 'done') {
+        genText.textContent = 'Complete!';
+        genFill.style.width = '100%';
+        msg.textContent = `Done. ${chunkAudios.length} chunks via WebSocket.`;
+        if (chunkAudios.length > 0) {
+          lastBlob = new Blob(chunkAudios, { type: 'audio/wav' });
+        }
+        isGenerating = false;
+        updateGeneratingUI(false);
+        genProgress.classList.remove('visible');
+      } else if (data.type === 'error') {
+        msg.textContent = `Error: ${data.detail}`;
+        msg.className = 'msg err';
+        isGenerating = false;
+        updateGeneratingUI(false);
+        genProgress.classList.remove('visible');
+      }
+    } else {
+      // Binary WAV chunk
+      const blob = new Blob([event.data], { type: 'audio/wav' });
+      chunkAudios.push(blob);
+      genFill.style.width = (chunkAudios.length / totalChunks * 100) + '%';
+
+      if (!firstChunkPlayed) {
+        firstChunkPlayed = true;
+        document.getElementById('player').classList.add('visible');
+        playChunkAudio(0);
+        msg.textContent = 'Playing...';
+      }
+    }
+  };
+
+  ws.onerror = () => {
+    msg.textContent = 'WebSocket error';
+    msg.className = 'msg err';
+    isGenerating = false;
+    updateGeneratingUI(false);
+    genProgress.classList.remove('visible');
+  };
+
+  ws.onclose = () => {
+    if (isGenerating) {
+      isGenerating = false;
+      updateGeneratingUI(false);
+      genProgress.classList.remove('visible');
+    }
+  };
+}
+
 function downloadAudio() {
-  const blob = lastBlob || (chunkAudios.length > 0 ? new Blob(chunkAudios, { type: 'audio/mpeg' }) : null);
+  const blob = lastBlob || (chunkAudios.length > 0 ? new Blob(chunkAudios, { type: 'audio/wav' }) : null);
   if (!blob) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = lastBlob.type === 'audio/wav' ? 'speech.wav' : 'speech.mp3';
+  const ext = blob.type.includes('wav') ? 'wav' : 'mp3';
+  a.download = `speech.${ext}`;
   a.click();
 }
 
@@ -890,6 +1284,7 @@ function downloadAudio() {
 checkHealth();
 loadVoices();
 loadEngines();
+detectLanguage();
 setInterval(checkHealth, 10000);
 </script>
 </body>
